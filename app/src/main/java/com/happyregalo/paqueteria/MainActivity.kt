@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -165,7 +166,12 @@ fun Find(onFound: (PackageEntity) -> Unit, back: () -> Unit) {
             }
         }
     } else {
-        Column(Modifier.padding(20.dp)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(20.dp)
+                .navigationBarsPadding()
+        ) {
             Text("LOCALIZAR", fontSize = 28.sp)
             Button({ mode = "ocr" }, Modifier.fillMaxWidth()) {
                 Text("🔍 LEER PANTALLA")
@@ -194,7 +200,8 @@ fun Find(onFound: (PackageEntity) -> Unit, back: () -> Unit) {
                 Text("BUSCAR")
             }
             Text(msg)
-            TextButton(back) {
+            Spacer(Modifier.weight(1f))
+            TextButton(back, Modifier.fillMaxWidth()) {
                 Text("VOLVER")
             }
         }
@@ -208,7 +215,10 @@ fun Result(p: PackageEntity?, done: () -> Unit, back: () -> Unit) {
     val scope = rememberCoroutineScope()
     
     Column(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier
+            .fillMaxSize()
+            .padding(20.dp)
+            .navigationBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -226,7 +236,8 @@ fun Result(p: PackageEntity?, done: () -> Unit, back: () -> Unit) {
         ) {
             Text("ENTREGADO")
         }
-        TextButton(back) {
+        Spacer(Modifier.weight(1f))
+        TextButton(back, Modifier.fillMaxWidth()) {
             Text("VOLVER")
         }
     }
@@ -238,7 +249,12 @@ fun Store(back: () -> Unit) {
     val db = remember { AppDb.get(c) }
     val list by db.packages().active().collectAsState(initial = emptyList())
     
-    Column(Modifier.padding(16.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .navigationBarsPadding()
+    ) {
         Text("ALMACÉN", fontSize = 28.sp)
         LazyColumn(Modifier.weight(1f)) {
             items(list) { p ->
@@ -257,12 +273,133 @@ fun Store(back: () -> Unit) {
 
 @Composable
 fun Config(back: () -> Unit) {
-    Text("Configuración inicial: A01-A30, B01-B20, C01-C12, D01-D06", Modifier.padding(24.dp))
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
-        Button(back, Modifier.fillMaxWidth().padding(20.dp)) {
+    val c = LocalContext.current
+    val db = remember { AppDb.get(c) }
+    val scope = rememberCoroutineScope()
+    var configs by remember { mutableStateOf<List<SlotConfig>>(emptyList()) }
+    var editedConfigs by remember { mutableStateOf<Map<Int, Pair<String, String>>>(emptyMap()) }
+    var saved by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf("") }
+    
+    LaunchedEffect(Unit) {
+        configs = db.config().all()
+        if (configs.isEmpty()) {
+            listOf(
+                SlotConfig(1, "A", 30),
+                SlotConfig(2, "B", 20),
+                SlotConfig(3, "C", 12),
+                SlotConfig(4, "D", 6)
+            ).also { defaults ->
+                defaults.forEach { db.config().save(it) }
+                configs = defaults
+            }
+        }
+        editedConfigs = configs.associate { it.size to (it.prefix to it.count.toString()) }
+    }
+    
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(20.dp)
+            .navigationBarsPadding()
+    ) {
+        Text("CONFIGURACIÓN", fontSize = 28.sp)
+        Spacer(Modifier.height(16.dp))
+        
+        LazyColumn(Modifier.weight(1f)) {
+            items(configs.size) { index ->
+                val cfg = configs[index]
+                val (editedPrefix, editedCount) = editedConfigs[cfg.size] ?: (cfg.prefix to cfg.count.toString())
+                
+                Card(Modifier.fillMaxWidth().padding(8.dp)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("TAMAÑO ${cfg.size}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        
+                        OutlinedTextField(
+                            editedPrefix,
+                            { newPrefix ->
+                                editedConfigs = editedConfigs.toMutableMap().apply {
+                                    this[cfg.size] = (newPrefix.uppercase().trim() to editedCount)
+                                }
+                            },
+                            label = { Text("Prefijo") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        
+                        OutlinedTextField(
+                            editedCount,
+                            { newCount ->
+                                editedConfigs = editedConfigs.toMutableMap().apply {
+                                    this[cfg.size] = (editedPrefix to newCount.filter { it.isDigit() })
+                                }
+                            },
+                            label = { Text("Número de ubicaciones") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+        }
+        
+        if (error.isNotEmpty()) {
+            Text(error, color = Color.Red, fontSize = 14.sp)
+            Spacer(Modifier.height(8.dp))
+        }
+        
+        if (saved) {
+            Text("✓ CONFIGURACIÓN GUARDADA", color = Green, fontSize = 16.sp)
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(2000)
+                saved = false
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        
+        Button(
+            {
+                error = ""
+                val newConfigs = editedConfigs.map { (size, pair) ->
+                    SlotConfig(size, pair.first, pair.second.toIntOrNull() ?: 0)
+                }
+                val validation = validateConfig(newConfigs)
+                if (validation == null) {
+                    scope.launch {
+                        newConfigs.forEach { db.config().save(it) }
+                        configs = newConfigs
+                        saved = true
+                    }
+                } else {
+                    error = validation
+                }
+            },
+            Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Text("GUARDAR CONFIGURACIÓN", fontSize = 16.sp)
+        }
+        
+        Spacer(Modifier.height(8.dp))
+        
+        TextButton(back, Modifier.fillMaxWidth()) {
             Text("VOLVER")
         }
     }
+}
+
+fun validateConfig(configs: List<SlotConfig>): String? {
+    configs.forEach { cfg ->
+        if (cfg.prefix.isEmpty()) return "Prefijo no puede estar vacío"
+        if (cfg.count < 1) return "El número de ubicaciones debe ser mínimo 1"
+    }
+    
+    val prefixes = configs.map { it.prefix }
+    if (prefixes.size != prefixes.toSet().size) {
+        return "Dos tamaños no pueden tener el mismo prefijo"
+    }
+    
+    return null
 }
 
 @Composable
@@ -354,6 +491,10 @@ fun Scanner(ocr: Boolean, onRead: (String) -> Unit) {
 }
 
 fun vibrate(c: Context) {
-    val v = c.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-    v.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+    try {
+        val v = c.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        v.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
 }
