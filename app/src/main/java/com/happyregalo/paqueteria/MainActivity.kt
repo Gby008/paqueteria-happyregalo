@@ -1,11 +1,11 @@
 package com.happyregalo.paqueteria
 
-import android.content.Context
-import android.content.pm.PackageManager
 import android.Manifest
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -198,13 +198,24 @@ fun Store(back: () -> Unit) {
             LazyColumn(Modifier.weight(1f)) {
                 items(list) { p ->
                     Card(Modifier.fillMaxWidth().padding(4.dp)) {
-                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${p.location} ✕ T${p.size} ✕ ⏱${p.shipmentId.takeLast(6)}", Modifier.weight(1f))
-                            Button({ packageToMove = p }) { Text("MOVER") }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("${p.location}", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                Text("T${p.size} • ${p.shipmentId.takeLast(6)}", fontSize = 14.sp, color = Color.Gray)
+                            }
+                            Button({ packageToMove = p }, Modifier.height(40.dp)) {
+                                Text("MOVER")
+                            }
                         }
                     }
                 }
             }
+            Spacer(Modifier.height(8.dp))
             Button(back, Modifier.fillMaxWidth()) { Text("VOLVER") }
         }
     }
@@ -227,16 +238,50 @@ fun MovePackage(packageEntity: PackageEntity, back: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding()) {
-        Text("MOVER PAQUETE", fontSize = 28.sp)
-        Text("Ubicación actual: ${packageEntity.location}", fontSize = 18.sp)
-        Text("Tamaño: ${packageEntity.size}", fontSize = 18.sp)
-        Spacer(Modifier.height(16.dp))
-        Text("Nueva ubicación propuesta:")
-        Text(selected.ifEmpty { "SIN HUECO" }, fontSize = 28.sp, color = Green)
+        Text("MOVER PAQUETE", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("Ubicación actual", fontSize = 14.sp, color = Color.Gray)
+                Text(packageEntity.location, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Green)
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("Tamaño", fontSize = 14.sp, color = Color.Gray)
+                Text("T${packageEntity.size}", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Text("Nueva ubicación propuesta", fontSize = 14.sp, color = Color.Gray)
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text(selected.ifEmpty { "SIN HUECO" }, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Green)
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
         Button({ selected = proposed.orEmpty(); message = "" }, enabled = proposed != null, modifier = Modifier.fillMaxWidth()) {
             Text("USAR UBICACIÓN PROPUESTA")
         }
-        OutlinedTextField(manual, { manual = it.uppercase().trim(); message = "" }, label = { Text("Otra ubicación") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            manual,
+            { manual = it.uppercase().trim(); message = "" },
+            label = { Text("Otra ubicación") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(8.dp))
         Button({
             scope.launch {
                 val candidate = manual.uppercase().trim()
@@ -248,10 +293,22 @@ fun MovePackage(packageEntity: PackageEntity, back: () -> Unit) {
                 }
             }
         }, modifier = Modifier.fillMaxWidth()) { Text("ELEGIR OTRA UBICACIÓN") }
-        if (message.isNotEmpty()) Text(message, color = if (message.startsWith("PAQUETE")) Green else Color.Red)
+
+        if (message.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(message, color = if (message.startsWith("PAQUETE")) Green else Color.Red, fontWeight = FontWeight.Bold)
+        }
+
         Spacer(Modifier.weight(1f))
-        Button({ if (selected.isNotEmpty() && !selected.equals(packageEntity.location, ignoreCase = true)) confirming = true }, enabled = selected.isNotEmpty() && !selected.equals(packageEntity.location, ignoreCase = true), modifier = Modifier.fillMaxWidth()) { Text("MOVER") }
-        TextButton(back, Modifier.fillMaxWidth()) { Text("CANCELAR") }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                { if (selected.isNotEmpty() && !selected.equals(packageEntity.location, ignoreCase = true)) confirming = true },
+                enabled = selected.isNotEmpty() && !selected.equals(packageEntity.location, ignoreCase = true),
+                modifier = Modifier.weight(1f)
+            ) { Text("MOVER") }
+            OutlinedButton({ back() }, Modifier.weight(1f)) { Text("CANCELAR") }
+        }
     }
 
     if (confirming) {
