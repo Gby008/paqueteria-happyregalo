@@ -269,6 +269,8 @@ fun Config(back: () -> Unit) {
 fun Scanner(ocr: Boolean, onRead: (String) -> Unit) {
     val c = LocalContext.current
     var locked by remember { mutableStateOf(false) }
+    var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
     
     AndroidView(
         factory = { ctx ->
@@ -276,12 +278,16 @@ fun Scanner(ocr: Boolean, onRead: (String) -> Unit) {
                 val f = ProcessCameraProvider.getInstance(ctx)
                 f.addListener({
                     val provider = f.get()
+                    cameraProvider = provider
+                    
                     val preview = Preview.Builder().build().also {
                         it.setSurfaceProvider(pv.surfaceProvider)
                     }
                     val analysis = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .build()
+                    analysisUseCase = analysis
+                    
                     val exec = Executors.newSingleThreadExecutor()
                     
                     analysis.setAnalyzer(exec) { proxy ->
@@ -302,7 +308,16 @@ fun Scanner(ocr: Boolean, onRead: (String) -> Unit) {
                                     bs.firstOrNull()?.rawValue?.let {
                                         locked = true
                                         vibrate(c)
-                                        onRead(it)
+                                        // Ejecutar callback en el hilo principal
+                                        ContextCompat.getMainExecutor(ctx).execute {
+                                            onRead(it)
+                                        }
+                                        // Desmontar cámara después de una lectura válida
+                                        try {
+                                            cameraProvider?.unbindAll()
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
                                     }
                                 }
                                 .addOnCompleteListener { proxy.close() }
@@ -313,7 +328,16 @@ fun Scanner(ocr: Boolean, onRead: (String) -> Unit) {
                                         .firstOrNull()?.value?.let {
                                             locked = true
                                             vibrate(c)
-                                            onRead(it)
+                                            // Ejecutar callback en el hilo principal
+                                            ContextCompat.getMainExecutor(ctx).execute {
+                                                onRead(it)
+                                            }
+                                            // Desmontar cámara después de una lectura válida
+                                            try {
+                                                cameraProvider?.unbindAll()
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
                                         }
                                 }
                                 .addOnCompleteListener { proxy.close() }
@@ -321,7 +345,7 @@ fun Scanner(ocr: Boolean, onRead: (String) -> Unit) {
                     }
                     
                     provider.unbindAll()
-                    provider.bindToLifecycle(c as ComponentActivity, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                    provider.bindToLifecycle(ctx as ComponentActivity, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
                 }, ContextCompat.getMainExecutor(ctx))
             }
         },
