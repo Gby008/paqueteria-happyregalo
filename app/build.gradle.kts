@@ -14,7 +14,7 @@ android { namespace = "com.happyregalo.paqueteria"; compileSdk = 35
     kotlinOptions {
         jvmTarget = "17"
     }
-    defaultConfig { applicationId = "com.happyregalo.paqueteria"; minSdk = 26; targetSdk = 35; versionCode = 1; versionName = "1.0.0" }
+    defaultConfig { applicationId = "com.happyregalo.paqueteria"; minSdk = 26; targetSdk = 35; versionCode = 2; versionName = "1.1-test" }
     buildFeatures { compose = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
