@@ -5,8 +5,11 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-android { namespace = "com.happyregalo.paqueteria"; compileSdk = 35
-        compileOptions {
+android {
+    namespace = "com.happyregalo.paqueteria"
+    compileSdk = 35
+
+    compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -14,9 +17,40 @@ android { namespace = "com.happyregalo.paqueteria"; compileSdk = 35
     kotlinOptions {
         jvmTarget = "17"
     }
-    defaultConfig { applicationId = "com.happyregalo.paqueteria"; minSdk = 26; targetSdk = 35; versionCode = 2; versionName = "1.1-test" }
-    buildFeatures { compose = true }
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+
+    defaultConfig {
+        applicationId = "com.happyregalo.paqueteria"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 2
+        versionName = "1.1-test"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file(
+                System.getenv("PAKAY_KEYSTORE_PATH")
+                    ?: "pakay-release.keystore"
+            )
+            storePassword = System.getenv("PAKAY_STORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("PAKAY_KEY_ALIAS") ?: ""
+            keyPassword = System.getenv("PAKAY_KEY_PASSWORD") ?: ""
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
 }
 
 dependencies {
