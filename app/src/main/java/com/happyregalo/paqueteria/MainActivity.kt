@@ -77,6 +77,7 @@ fun Home(go: (String) -> Unit) {
                 Button({ go(s) }, Modifier.fillMaxWidth().height(72.dp)) { Text(t, fontSize = 20.sp) }
                 Spacer(Modifier.height(14.dp))
             }
+        Text("PAKAY TEST 1.1", fontSize = 10.sp, color = Color.Gray)
     }
 }
 
@@ -125,13 +126,8 @@ suspend fun firstFree(db: AppDb, size: Int): String {
 
 suspend fun firstFreeForMove(db: AppDb, packageEntity: PackageEntity): String? {
     val config = db.config().all().firstOrNull { it.size == packageEntity.size } ?: return null
-    val occupied = db.packages().activeNow()
-        .filter { it.shipmentId != packageEntity.shipmentId }
-        .map { it.location }
-        .toSet()
-    return (1..config.count)
-        .map { "${config.prefix}${it.toString().padStart(2, '0')}" }
-        .firstOrNull { it != packageEntity.location && it !in occupied }
+    val occupied = db.packages().activeNow().filter { it.shipmentId != packageEntity.shipmentId }.map { it.location }.toSet()
+    return (1..config.count).map { "${config.prefix}${it.toString().padStart(2, '0')}" }.firstOrNull { it != packageEntity.location && it !in occupied }
 }
 
 @Composable
@@ -189,7 +185,6 @@ fun Store(back: () -> Unit) {
     val db = remember { AppDb.get(c) }
     val list by db.packages().active().collectAsState(initial = emptyList())
     var packageToMove by remember { mutableStateOf<PackageEntity?>(null) }
-
     if (packageToMove != null) {
         MovePackage(packageToMove!!, { packageToMove = null })
     } else {
@@ -198,19 +193,12 @@ fun Store(back: () -> Unit) {
             LazyColumn(Modifier.weight(1f)) {
                 items(list) { p ->
                     Card(Modifier.fillMaxWidth().padding(4.dp)) {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("${p.location}", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                                 Text("T${p.size} • ${p.shipmentId.takeLast(6)}", fontSize = 14.sp, color = Color.Gray)
                             }
-                            Button({ packageToMove = p }, Modifier.height(40.dp)) {
-                                Text("MOVER")
-                            }
+                            Button({ packageToMove = p }, Modifier.height(40.dp)) { Text("MOVER") }
                         }
                     }
                 }
@@ -231,110 +219,33 @@ fun MovePackage(packageEntity: PackageEntity, back: () -> Unit) {
     var manual by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var confirming by remember { mutableStateOf(false) }
-
-    LaunchedEffect(packageEntity.shipmentId) {
-        proposed = firstFreeForMove(db, packageEntity)
-        selected = proposed.orEmpty()
-    }
-
+    LaunchedEffect(packageEntity.shipmentId) { proposed = firstFreeForMove(db, packageEntity); selected = proposed.orEmpty() }
     Column(Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding()) {
         Text("MOVER PAQUETE", fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
-
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Text("Ubicación actual", fontSize = 14.sp, color = Color.Gray)
-                Text(packageEntity.location, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Green)
-            }
-        }
-
+        Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Ubicación actual", fontSize = 14.sp, color = Color.Gray); Text(packageEntity.location, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Green) } }
         Spacer(Modifier.height(12.dp))
-
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Text("Tamaño", fontSize = 14.sp, color = Color.Gray)
-                Text("T${packageEntity.size}", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-
+        Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Tamaño", fontSize = 14.sp, color = Color.Gray); Text("T${packageEntity.size}", fontSize = 26.sp, fontWeight = FontWeight.Bold) } }
         Spacer(Modifier.height(12.dp))
-
         Text("Nueva ubicación propuesta", fontSize = 14.sp, color = Color.Gray)
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Text(selected.ifEmpty { "SIN HUECO" }, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Green)
-            }
-        }
-
+        Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text(selected.ifEmpty { "SIN HUECO" }, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Green) } }
         Spacer(Modifier.height(8.dp))
-        Button({ selected = proposed.orEmpty(); message = "" }, enabled = proposed != null, modifier = Modifier.fillMaxWidth()) {
-            Text("USAR UBICACIÓN PROPUESTA")
-        }
-
+        Button({ selected = proposed.orEmpty(); message = "" }, enabled = proposed != null, modifier = Modifier.fillMaxWidth()) { Text("USAR UBICACIÓN PROPUESTA") }
         Spacer(Modifier.height(12.dp))
-
-        OutlinedTextField(
-            manual,
-            { manual = it.uppercase().trim(); message = "" },
-            label = { Text("Otra ubicación") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
+        OutlinedTextField(manual, { manual = it.uppercase().trim(); message = "" }, label = { Text("Otra ubicación") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(8.dp))
-        Button({
-            scope.launch {
-                val candidate = manual.uppercase().trim()
-                if (candidate.isEmpty()) {
-                    message = "Introduce una ubicación"
-                } else {
-                    val occupied = db.packages().activeNow().any { it.shipmentId != packageEntity.shipmentId && it.location.equals(candidate, ignoreCase = true) }
-                    if (occupied) message = "UBICACIÓN OCUPADA" else { selected = candidate; message = "" }
-                }
-            }
-        }, modifier = Modifier.fillMaxWidth()) { Text("ELEGIR OTRA UBICACIÓN") }
-
-        if (message.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(message, color = if (message.startsWith("PAQUETE")) Green else Color.Red, fontWeight = FontWeight.Bold)
-        }
-
+        Button({ scope.launch { val candidate = manual.uppercase().trim(); if (candidate.isEmpty()) message = "Introduce una ubicación" else { val occupied = db.packages().activeNow().any { it.shipmentId != packageEntity.shipmentId && it.location.equals(candidate, ignoreCase = true) }; if (occupied) message = "UBICACIÓN OCUPADA" else { selected = candidate; message = "" } } } }, modifier = Modifier.fillMaxWidth()) { Text("ELEGIR OTRA UBICACIÓN") }
+        if (message.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text(message, color = if (message.startsWith("PAQUETE")) Green else Color.Red, fontWeight = FontWeight.Bold) }
         Spacer(Modifier.weight(1f))
-
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                { if (selected.isNotEmpty() && !selected.equals(packageEntity.location, ignoreCase = true)) confirming = true },
-                enabled = selected.isNotEmpty() && !selected.equals(packageEntity.location, ignoreCase = true),
-                modifier = Modifier.weight(1f)
-            ) { Text("MOVER") }
+            Button({ if (selected.isNotEmpty() && !selected.equals(packageEntity.location, ignoreCase = true)) confirming = true }, enabled = selected.isNotEmpty() && !selected.equals(packageEntity.location, ignoreCase = true), modifier = Modifier.weight(1f)) { Text("MOVER") }
             OutlinedButton({ back() }, Modifier.weight(1f)) { Text("CANCELAR") }
         }
     }
-
     if (confirming) {
-        AlertDialog(
-            onDismissRequest = { confirming = false },
-            title = { Text("MOVER PAQUETE") },
-            text = { Text("De: ${packageEntity.location}\nA: $selected") },
-            confirmButton = {
-                TextButton({
-                    scope.launch {
-                        val destination = selected
-                        val updated = db.packages().moveIfFree(packageEntity.shipmentId, destination)
-                        if (updated == 1) {
-                            confirming = false
-                            message = "PAQUETE MOVIDO A $destination"
-                            delay(1000)
-                            back()
-                        } else {
-                            confirming = false
-                            message = "UBICACIÓN OCUPADA"
-                        }
-                    }
-                }) { Text("CONFIRMAR") }
-            },
-            dismissButton = { TextButton({ confirming = false }) { Text("CANCELAR") } }
-        )
+        AlertDialog(onDismissRequest = { confirming = false }, title = { Text("MOVER PAQUETE") }, text = { Text("De: ${packageEntity.location}\nA: $selected") }, confirmButton = {
+            TextButton({ scope.launch { val destination = selected; val updated = db.packages().moveIfFree(packageEntity.shipmentId, destination); if (updated == 1) { confirming = false; message = "PAQUETE MOVIDO A $destination"; delay(1000); back() } else { confirming = false; message = "UBICACIÓN OCUPADA" } } }) { Text("CONFIRMAR") }
+        }, dismissButton = { TextButton({ confirming = false }) { Text("CANCELAR") } })
     }
 }
 
@@ -349,11 +260,7 @@ fun Config(back: () -> Unit) {
     var error by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
         configs = db.config().all()
-        if (configs.isEmpty()) {
-            listOf(SlotConfig(1, "A", 30), SlotConfig(2, "B", 20), SlotConfig(3, "C", 12), SlotConfig(4, "D", 6)).also { defaults ->
-                defaults.forEach { db.config().save(it) }; configs = defaults
-            }
-        }
+        if (configs.isEmpty()) { listOf(SlotConfig(1, "A", 30), SlotConfig(2, "B", 20), SlotConfig(3, "C", 12), SlotConfig(4, "D", 6)).also { defaults -> defaults.forEach { db.config().save(it) }; configs = defaults } }
         editedConfigs = configs.associate { it.size to (it.prefix to it.count.toString()) }
     }
     Column(Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding()) {
@@ -375,13 +282,7 @@ fun Config(back: () -> Unit) {
         }
         if (error.isNotEmpty()) { Text(error, color = Color.Red, fontSize = 14.sp); Spacer(Modifier.height(8.dp)) }
         if (saved) { Text("✓ CONFIGURACIÓN GUARDADA", color = Green, fontSize = 16.sp); Spacer(Modifier.height(8.dp)) }
-        Button({
-            error = ""
-            val newConfigs = editedConfigs.map { (size, pair) -> SlotConfig(size, pair.first, pair.second.toIntOrNull() ?: 0) }
-            val validation = validateConfig(newConfigs)
-            if (validation == null) scope.launch { newConfigs.forEach { db.config().save(it) }; configs = newConfigs; saved = true }
-            else error = validation
-        }, Modifier.fillMaxWidth().height(56.dp)) { Text("GUARDAR CONFIGURACIÓN", fontSize = 16.sp) }
+        Button({ error = ""; val newConfigs = editedConfigs.map { (size, pair) -> SlotConfig(size, pair.first, pair.second.toIntOrNull() ?: 0) }; val validation = validateConfig(newConfigs); if (validation == null) scope.launch { newConfigs.forEach { db.config().save(it) }; configs = newConfigs; saved = true } else error = validation }, Modifier.fillMaxWidth().height(56.dp)) { Text("GUARDAR CONFIGURACIÓN", fontSize = 16.sp) }
         Spacer(Modifier.height(8.dp))
         TextButton(back, Modifier.fillMaxWidth()) { Text("VOLVER") }
     }
@@ -416,13 +317,9 @@ fun Scanner(ocr: Boolean, onRead: (String) -> Unit) {
                     val img = proxy.image ?: run { proxy.close(); return@setAnalyzer }
                     val input = InputImage.fromMediaImage(img, proxy.imageInfo.rotationDegrees)
                     if (!ocr) {
-                        BarcodeScanning.getClient().process(input).addOnSuccessListener { bs -> bs.firstOrNull()?.rawValue?.let {
-                            locked = true; vibrate(c); ContextCompat.getMainExecutor(ctx).execute { onRead(it) }; try { cameraProvider?.unbindAll() } catch (e: Exception) { e.printStackTrace() }
-                        } }.addOnCompleteListener { proxy.close() }
+                        BarcodeScanning.getClient().process(input).addOnSuccessListener { bs -> bs.firstOrNull()?.rawValue?.let { locked = true; vibrate(c); ContextCompat.getMainExecutor(ctx).execute { onRead(it) }; try { cameraProvider?.unbindAll() } catch (e: Exception) { e.printStackTrace() } } }.addOnCompleteListener { proxy.close() }
                     } else {
-                        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(input).addOnSuccessListener { t -> Regex("\\d{8,}").findAll(t.text.replace(" ", "")).firstOrNull()?.value?.let {
-                            locked = true; vibrate(c); ContextCompat.getMainExecutor(ctx).execute { onRead(it) }; try { cameraProvider?.unbindAll() } catch (e: Exception) { e.printStackTrace() }
-                        } }.addOnCompleteListener { proxy.close() }
+                        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(input).addOnSuccessListener { t -> Regex("\\d{8,}").findAll(t.text.replace(" ", "")).firstOrNull()?.value?.let { locked = true; vibrate(c); ContextCompat.getMainExecutor(ctx).execute { onRead(it) }; try { cameraProvider?.unbindAll() } catch (e: Exception) { e.printStackTrace() } } }.addOnCompleteListener { proxy.close() }
                     }
                 }
                 provider.unbindAll(); provider.bindToLifecycle(ctx as ComponentActivity, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
