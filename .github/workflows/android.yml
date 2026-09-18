@@ -22,11 +22,30 @@ jobs:
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Compilar APK Debug
-        run: gradle assembleDebug
+      - name: Reconstruir keystore PAKAY
+        env:
+          PAKAY_KEYSTORE_BASE64: ${{ secrets.PAKAY_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="${RUNNER_TEMP}/pakay-release.keystore"
+          printf '%s' "$PAKAY_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "PAKAY_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
-      - name: Guardar APK
+      - name: Compilar APK Release firmada
+        env:
+          PAKAY_STORE_PASSWORD: ${{ secrets.PAKAY_STORE_PASSWORD }}
+          PAKAY_KEY_ALIAS: ${{ secrets.PAKAY_KEY_ALIAS }}
+          PAKAY_KEY_PASSWORD: ${{ secrets.PAKAY_KEY_PASSWORD }}
+        run: gradle assembleRelease
+
+      - name: Guardar APK PAKAY
         uses: actions/upload-artifact@v4
         with:
-          name: PaqueteriaHappyRegalo-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: PAKAY-APK
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Eliminar keystore temporal
+        if: always()
+        run: rm -f "$PAKAY_KEYSTORE_PATH"
