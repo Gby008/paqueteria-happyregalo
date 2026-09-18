@@ -69,15 +69,30 @@ fun App() {
 
 @Composable
 fun Home(go: (String) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.Center) {
-        Text("Paquetería Happy Regalo", fontSize = 28.sp)
+    Column(
+        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("PAKAY", fontSize = 42.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "ORGANIZA · LOCALIZA · SIMPLIFICA",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Gray
+        )
         Spacer(Modifier.height(28.dp))
-        listOf("📦 ENTRADA" to "entry", "🔎 LOCALIZAR" to "find", "📍 ALMACÉN" to "store", "⚙️ CONFIGURACIÓN" to "config")
-            .forEach { (t, s) ->
-                Button({ go(s) }, Modifier.fillMaxWidth().height(72.dp)) { Text(t, fontSize = 20.sp) }
-                Spacer(Modifier.height(14.dp))
+        listOf(
+            "📦 ENTRADA" to "entry",
+            "🔎 LOCALIZAR" to "find",
+            "📍 ALMACÉN" to "store",
+            "⚙️ CONFIGURACIÓN" to "config"
+        ).forEach { (t, s) ->
+            Button({ go(s) }, Modifier.fillMaxWidth().height(72.dp)) {
+                Text(t, fontSize = 20.sp)
             }
-        Text("PAKAY TEST 1.1", fontSize = 10.sp, color = Color.Gray)
+            Spacer(Modifier.height(14.dp))
+        }
     }
 }
 
@@ -183,22 +198,53 @@ fun Result(p: PackageEntity?, done: () -> Unit, back: () -> Unit) {
 fun Store(back: () -> Unit) {
     val c = LocalContext.current
     val db = remember { AppDb.get(c) }
+    val scope = rememberCoroutineScope()
     val list by db.packages().active().collectAsState(initial = emptyList())
     var packageToMove by remember { mutableStateOf<PackageEntity?>(null) }
+    var packageToRemove by remember { mutableStateOf<PackageEntity?>(null) }
+    var releasedLocation by remember { mutableStateOf<String?>(null) }
+
     if (packageToMove != null) {
         MovePackage(packageToMove!!, { packageToMove = null })
     } else {
         Column(Modifier.fillMaxSize().padding(16.dp).navigationBarsPadding()) {
             Text("ALMACÉN", fontSize = 28.sp)
+
+            releasedLocation?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "PAQUETE DADO DE BAJA · HUECO $it LIBERADO",
+                    color = Green,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
             LazyColumn(Modifier.weight(1f)) {
                 items(list) { p ->
                     Card(Modifier.fillMaxWidth().padding(4.dp)) {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Column(Modifier.weight(1f)) {
-                                Text("${p.location}", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                Text("T${p.size} • ${p.shipmentId.takeLast(6)}", fontSize = 14.sp, color = Color.Gray)
+                                Text(p.location, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "T${p.size} • ${p.shipmentId.takeLast(6)}",
+                                    fontSize = 14.sp,
+                                    color = Color.Gray
+                                )
                             }
-                            Button({ packageToMove = p }, Modifier.height(40.dp)) { Text("MOVER") }
+                            Column {
+                                Button(
+                                    { packageToMove = p },
+                                    Modifier.height(40.dp)
+                                ) { Text("MOVER") }
+                                Spacer(Modifier.height(4.dp))
+                                OutlinedButton(
+                                    { packageToRemove = p },
+                                    Modifier.height(40.dp)
+                                ) { Text("DAR DE BAJA") }
+                            }
                         }
                     }
                 }
@@ -206,6 +252,33 @@ fun Store(back: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             Button(back, Modifier.fillMaxWidth()) { Text("VOLVER") }
         }
+    }
+
+    packageToRemove?.let { p ->
+        AlertDialog(
+            onDismissRequest = { packageToRemove = null },
+            title = { Text("DAR DE BAJA PAQUETE") },
+            text = {
+                Text(
+                    "Ubicación: ${p.location}\n" +
+                    "Código: ${p.shipmentId.takeLast(6)}\n\n" +
+                    "¿Confirmas que este paquete ya no está en el almacén?"
+                )
+            },
+            confirmButton = {
+                TextButton({
+                    scope.launch {
+                        val location = p.location
+                        db.packages().deliver(p.shipmentId)
+                        releasedLocation = location
+                        packageToRemove = null
+                    }
+                }) { Text("CONFIRMAR") }
+            },
+            dismissButton = {
+                TextButton({ packageToRemove = null }) { Text("CANCELAR") }
+            }
+        )
     }
 }
 
