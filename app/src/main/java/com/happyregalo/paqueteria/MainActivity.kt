@@ -76,21 +76,14 @@ fun Home(go: (String) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.pakay_logo),
-            contentDescription = "PAKAY",
-            modifier = Modifier
-                .fillMaxWidth(0.72f)
-                .height(150.dp)
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "ORGANIZA · LOCALIZA · SIMPLIFICA",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Gray
-        )
-        Spacer(Modifier.height(28.dp))
+     Image(
+    painter = painterResource(id = R.drawable.pakay_logo),
+    contentDescription = "PAKAY",
+    modifier = Modifier
+        .fillMaxWidth(0.88f)
+        .height(200.dp)
+)
+Spacer(Modifier.height(24.dp))
         listOf(
             "📦 ENTRADA" to "entry",
             "🔎 LOCALIZAR" to "find",
